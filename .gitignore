@@ -50,3 +50,6 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# .mp4 files are excluded in order to avoid the use of Git LFS
+*.mp4
