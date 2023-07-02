@@ -193,7 +193,7 @@ void *inet_main(void *args)
   }
 
   /*Now we make our socket ready to receive incomming connections. */
-  if (listen(sock_fd, ) == -1)
+  if (listen(sock_fd, NR_CONNECTIONS) == -1)
   {
     printf("\nERROR! ---> Failed to listen for incoming connections\n");
   }
