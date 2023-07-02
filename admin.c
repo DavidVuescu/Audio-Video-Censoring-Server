@@ -40,10 +40,7 @@ int main(int argc, char *argv[])
   char response[1024];
   memset(response, 0x00, 1024);
 
-  
-
-
-  /*We read the response from the server. If response is "WELCOME", then we are good to go. */
+    /*We read the response from the server. If response is "WELCOME", then we are good to go. */
 
   if (read(sock, response, 1024) < 0)
   {
@@ -74,8 +71,9 @@ int main(int argc, char *argv[])
   {
     printf("\n----- MENU -----\n");
     printf("  1. View Number OF Clients Connected. \n");
-    printf("  2. Stop Server. \n");
-    printf("  3. End Session. \n");
+    printf("  2. View Server Statistics. \n");
+    printf("  3. Stop Server. \n");
+    printf("  4. End Session. \n");
     printf("> ");
     /*Read the user supplied option */
     scanf("%d", &op);

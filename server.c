@@ -6,7 +6,7 @@ int main()
 
   pthread_t unixthr, /* UNIX Thread: the UNIX server component */
       inetthr;       /* INET Thread: the INET server component */
-       
+
   unlink(UNIXSOCKET);
   printf("\n............ SERVER ............ \n");
 
@@ -22,10 +22,6 @@ int main()
   unlink(UNIXSOCKET);
   return 0;
 }
-
-
-
-
 
 void *unix_main(void *args)
 {
@@ -197,7 +193,7 @@ void *inet_main(void *args)
   }
 
   /*Now we make our socket ready to receive incomming connections. */
-  if (listen(sock_fd, 5) == -1)
+  if (listen(sock_fd, ) == -1)
   {
     printf("\nERROR! ---> Failed to listen for incoming connections\n");
   }
@@ -344,8 +340,6 @@ void *inet_main(void *args)
   free(thread_ids);
 
   printf("\n---> SERVER SHUTDOWN <---\n");
-
-
 }
 
 /*Function that handles an administrator client. */
@@ -605,14 +599,10 @@ void *client_handler(void *data)
     printf("\nI: Successfully received a '%s' video file from user client (IP = %s, port = %d) \n", video_file_ext, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
     pthread_mutex_unlock(&pmutex);
 
-   
-   
-
     /*The response buffer is reset. */
     memset(response, 0x00, 64);
     /*Now we read the response */
 
-   
     /*Now we can use the function that will spawn FFMPEG to do the video/audio transformation. */
     /*We create a proper path to save the resulting video in the server's storage. */
     sprintf(output_video_path, "./ServerOutput/%ld_video_.%s", random(), video_file_ext);
@@ -698,65 +688,58 @@ void *client_handler(void *data)
   free(buff);
 }
 
+int censor_video(char *videoPath, char *output_path)
+{
+  pid_t pid;
 
+  pid = fork(); // Fork the process
 
-int censor_video(char *videoPath,  char *output_path) {
-  
+  if (pid < 0)
+  {
+    printf("Failed to create child process.\n");
+    return 1;
+  }
+  else if (pid == 0)
+  {
+    /* Child process */
+    char *cppPath = "./BlurVideo"; // Path to your C++ executable
 
-    pid_t pid;
+    char *arguments[] = {
+        cppPath,
+        videoPath,
+        output_path,
+        NULL};
 
+    /* Execute the C++ executable */
+    execvp(cppPath, arguments);
 
-    // Fork the process
-    pid = fork();
+    /* If execvp returns, an error occurred */
+    printf("Failed to execute the C++ program.\n");
+    return 1;
+  }
+  else
+  {
+    /* Parent process: Continue execution */
+    printf("Parent process continues execution.\n");
 
-    if (pid < 0) {
-        printf("Failed to create child process.\n");
-        return 1;
-    } else if (pid == 0) {
-        // Child process: Execute the Python script
-        char* pythonPath = "python3";  // Update with your Python interpreter path
-        char* pythonScript = "main.py";  // Update with the actual path to your Python script
+    /* Wait for the child process to finish */
+    int status;
+    waitpid(pid, &status, 0);
 
-        // Prepare the arguments array for the Python script
-        char* arguments[] = {
-            pythonPath,
-            pythonScript,
-            videoPath,
-            output_path,
-            NULL
-        };
-
-        // Execute the Python script
-        execvp(pythonPath, arguments);
-
-        // If execvp returns, an error occurred
-        printf("Failed to execute the Python script.\n");
-        return 1;
-    } else {
-        // Parent process: Continue execution
-        printf("Parent process continues execution.\n");
-
-        // Wait for the child process to finish
-        int status;
-        waitpid(pid, &status, 0);
-
-        if (WIFEXITED(status)) {
-            // Child process exited normally
-            int exitStatus = WEXITSTATUS(status);
-            printf("Child process exited with status: %d\n", exitStatus);
-        } else if (WIFSIGNALED(status)) {
-            // Child process terminated by a signal
-            int signalNumber = WTERMSIG(status);
-            printf("Child process terminated by signal: %d\n", signalNumber);
-        }
+    if (WIFEXITED(status))
+    {
+      /* Child process exited normally */
+      int exitStatus = WEXITSTATUS(status);
+      printf("Child process exited with status: %d\n", exitStatus);
     }
+    else if (WIFSIGNALED(status))
+    {
+      /* Child process terminated by a signal*/
+      int signalNumber = WTERMSIG(status);
+      printf("Child process terminated by signal: %d\n", signalNumber);
+    }
+  }
 
-    printf("Program execution completed.\n");
-    return 0;
+  printf("Program execution completed.\n");
+  return 0;
 }
-
-
-
-
-
-
