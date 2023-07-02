@@ -35,6 +35,7 @@
 *.i*86
 *.x86_64
 *.hex
+*.
 
 # Debug files
 *.dSYM/
@@ -51,4 +52,14 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+# Build folders
+build/
+Build/
+
+# Ignore all mp4 type files except for the raw input file
+*.mp4
+!input.mp4
+
+# BlurVideo executable server file
+BlurVideo
 
