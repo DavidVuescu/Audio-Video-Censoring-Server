@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <opencv2/opencv.hpp>
+#include <unistd.h>
 
 // Function to blur the faces in a video using Haar cascade
 void blur_video(const char *inputFilename, const char *outputFilename)
@@ -15,7 +16,7 @@ void blur_video(const char *inputFilename, const char *outputFilename)
     return;
   }
 
-  cv::VideoWriter writer(outputFilename, cv::VideoWriter::fourcc('H', '2', '6', '4'), capture.get(cv::CAP_PROP_FPS),
+  cv::VideoWriter writer(outputFilename, cv::VideoWriter::fourcc('a', 'v', 'c', '1'), capture.get(cv::CAP_PROP_FPS),
                          cv::Size(capture.get(cv::CAP_PROP_FRAME_WIDTH), capture.get(cv::CAP_PROP_FRAME_HEIGHT)));
 
   cv::Mat frame, grayFrame;
@@ -45,7 +46,7 @@ void blur_video(const char *inputFilename, const char *outputFilename)
 void audio_distort(const char *inputFilename, const char *outputFilename)
 {
   char command[512];
-  sprintf(command, "ffmpeg -i %s -af \"asetrate=44100*1.5, atempo=0.6667\" -c:v copy %s", inputFilename, outputFilename);
+  sprintf(command, "ffmpeg -i %s -af \"asetrate=44100*1.5, atempo=0.6667\" -c:v copy %s > /dev/null 2>&1", inputFilename, outputFilename);
   system(command);
 }
 
@@ -54,7 +55,7 @@ void combine_videos(const char *blurredVideo, const char *distortedAudio, const 
 {
   // Use FFmpeg to combine the videos
   char command[512];
-  sprintf(command, "ffmpeg -i %s -i %s -c:v copy -c:a aac -strict experimental %s", blurredVideo, distortedAudio, output_path);
+  sprintf(command, "ffmpeg -i %s -i %s -c:v copy -c:a aac -strict experimental %s > /dev/null 2>&1", blurredVideo, distortedAudio, output_path);
   system(command);
 }
 
@@ -62,12 +63,12 @@ void finalize(const char *output_path)
 {
   // Modify audio pitch
   char cmd_audio[512];
-  sprintf(cmd_audio, "ffmpeg -i %s_SOUND.wav -filter_complex '[0:a]atempo=0.7,asetrate=44100*1.3[out]' -map '[out]' %s_SOUND_MODIFIED.wav -y", output_path, output_path);
+  sprintf(cmd_audio, "ffmpeg -i %s_SOUND.wav -filter_complex '[0:a]atempo=0.7,asetrate=44100*1.3[out]' -map '[out]' %s_SOUND_MODIFIED.wav -y > /dev/null 2>&1", output_path, output_path);
   system(cmd_audio);
 
   // Merge video and modified audio
   char cmd[512];
-  sprintf(cmd, "ffmpeg -i %s_VIDEO.mp4 -i %s_SOUND_MODIFIED.wav -c:v copy -c:a aac -strict experimental %s -y", output_path, output_path, output_path);
+  sprintf(cmd, "ffmpeg -i %s_VIDEO.mp4 -i %s_SOUND_MODIFIED.wav -c:v copy -c:a aac -strict experimental %s -y > /dev/null 2>&1", output_path, output_path, output_path);
   system(cmd);
 
   // Clean up temporary files
