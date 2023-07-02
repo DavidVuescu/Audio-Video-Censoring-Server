@@ -17,6 +17,8 @@
 #define UNIXSOCKET "/tmp/unix_socket"
 #define INETPORT 18081
 
+#define NR_CONNECTIONS 100
+
 typedef struct CLIENT_DATA
 {
   int client_socket_fd;
@@ -35,10 +37,10 @@ typedef struct SERVER_INFO
 {
   /*Number of clients connected */
   uint32_t num_clients;
+  uint32_t successful_services;
   int serv_sock_fd;
 
 } SERVER_INFO;
-
 
 pthread_mutex_t pmutex;
 /* Global struct instance of SERVER_STAT*/
@@ -48,10 +50,7 @@ int run = 1;
 
 void *unix_main(void *args);
 void *inet_main(void *args);
-int censor_video( char *videoPath,  char *output_path);
+int censor_video(char *videoPath, char *output_path);
 void *admin_handler(void *data);
 void *client_handler(void *data);
-void *connection_handler(void *data);
-void* executePythonScript(void* arg);
-void* censor_video_thread(void* arg);
-
+void *censor_video_thread(void *arg);
