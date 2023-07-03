@@ -42,6 +42,13 @@ typedef struct SERVER_INFO
 
 } SERVER_INFO;
 
+typedef struct
+{
+  char *video_path;
+  char *output_path;
+  int censor_status;
+} CENSOR_ARGS;
+
 pthread_mutex_t pmutex;
 /* Global struct instance of SERVER_STAT*/
 SERVER_INFO server_info;

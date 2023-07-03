@@ -449,243 +449,270 @@ void *admin_handler(void *data)
 /*Function that handles a user client. */
 void *client_handler(void *data)
 {
-  CLIENT_DATA *cdata = (CLIENT_DATA *)data;
-  pthread_mutex_lock(&pmutex);
-  printf("\n---> USER CLIENT connected ( IP: %s,  PORT: %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-
-  /*Update the number of clients*/
-  server_info.num_clients++;
-
-  /*Release the lock*/
-  pthread_mutex_unlock(&pmutex);
-  /*We create a copy of the client socket file descriptor. */
-  int cl_sock = cdata->client_socket_fd;
-
-  /*The server sends a WELCOME message to client to let them know they are accepted. */
-  if (write(cl_sock, "WELCOME", strlen("WELCOME") + 1) < 0)
-  {
-    /*If error occurs, we close the connection and return
-     * We also decrement the appropriate counts from the statistics*
-     */
+    CLIENT_DATA *cdata = (CLIENT_DATA *)data;
     pthread_mutex_lock(&pmutex);
-    server_info.num_clients--;
+    printf("\n---> USER CLIENT connected ( IP: %s,  PORT: %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+
+    /*Update the number of clients*/
+    server_info.num_clients++;
+
+    /*Release the lock*/
     pthread_mutex_unlock(&pmutex);
-    close(cl_sock);
-  }
+    /*We create a copy of the client socket file descriptor. */
+    int cl_sock = cdata->client_socket_fd;
 
-  /*Buffer to store a response strings... */
-  char response[64];
-
-  /*The server needs to store video uploaded by user in its local storage. */
-  char video_path[128];
-
-  /*Path of the resulting video in the local storage of server*/
-  char output_video_path[128];
-
-  /*We need buffers to store video file extension from the user client. */
-  char video_file_ext[31];
-
-  /*Required video file extension. */
-  char file_ext[8];
-
-  /*We allocate a buffer to make the task of reading and writing files more manageable. */
-  unsigned char *buff = (unsigned char *)malloc(4096);
-
-  intmax_t fSize = 0;
-
-  uint32_t sec = 0;    // Duration of video
-  uint32_t width = 0;  // Width of video frame.
-  uint32_t height = 0; // Height of video frame.
-
-  /*We seed the random number generator. */
-  srandom(time(NULL));
-
-  /*We enter into a while loop of service in which we accept video files from the user client with aporopriate parameters and does the expected job for them. */
-  while (1)
-  {
-    /*Reset the all the buffers as well as other variables. */
-    memset(response, 0x00, 64);
-
-    memset(video_path, 0x00, 128);
-    memset(video_file_ext, 0x00, 31);
-
-    memset(output_video_path, 0x00, 128);
-    memset(file_ext, 0x00, 8);
-
-    fSize = 0;
-    sec = 0;
-    width = height = 0;
-
-    /*Read the response from user client */
-    if (read(cl_sock, response, 64) < 0)
+    /*The server sends a WELCOME message to client to let them know they are accepted. */
+    if (write(cl_sock, "WELCOME", strlen("WELCOME") + 1) < 0)
     {
-      break;
-    }
-
-    /*If the response is the string "EXIT" we quit serving the client immediately. */
-    if (strcmp(response, "EXIT") == 0)
-    {
-      pthread_mutex_lock(&pmutex);
-      /*We print on the terminal that the session for this user client is over. */
-      printf("\n---> USER CLIENT left!  (IP: %s on port: %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-      pthread_mutex_unlock(&pmutex);
-      break;
-    }
-
-    /****OTHERWISE****/
-    /*The server now expects the video file extension from the user client; along with its size in bytes in ".extension SIZE" format. */
-
-    /*We extract the video file extension and size from the response string. */
-    sscanf(response, "%s %jd", video_file_ext, (intmax_t *)&fSize);
-
-    /*If the file size is zero or video file extension is empty. We close this connection */
-
-    if ((fSize == 0) || strlen(video_file_ext) == 0)
-    {
-      pthread_mutex_lock(&pmutex);
-      printf("I: User client (IP = %s, port = %d), \n   sent invalid data; Closing connection!\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-      pthread_mutex_unlock(&pmutex);
-
-      break;
-    }
-
-    /*We print necessary information on the server's terminal */
-
-    pthread_mutex_lock(&pmutex);
-    printf("I: User client (IP = %s, port = %d), \n   wants to upload a '%s' video file, having size %jd bytes. \n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port), video_file_ext, fSize);
-
-    pthread_mutex_unlock(&pmutex);
-
-    /*The server then sends a "SEND_FILE" response to indicate that the client should begin the upload of the file to the server. */
-
-    if (write(cl_sock, "SEND_FILE", strlen("SEND_FILE") + 1) < 0)
-    {
-      break;
-    }
-
-    /*We use random numbers to create a unique file name for the uploaded video, so that it won't create a problem if a different thread gets same file name from user */
-    sprintf(video_path, "./ServerInput/%ld_video_%s", random(), video_file_ext);
-
-    /*Now we read the file contents from the client and save it in our server's local storage. */
-
-    intmax_t sz = 0; // Size counter.
-    /*We prepare to save the data read from the client ... */
-    FILE *fp = fopen(video_path, "wb");
-    int n = 0; // Number of bytes instantaneously read.
-
-    while (sz < fSize)
-    {
-      n = read(cl_sock, buff, 4096);
-      if (n == -1)
-      {
-        /*Error occured! */
+        /*If error occurs, we close the connection and return
+         * We also decrement the appropriate counts from the statistics*
+         */
         pthread_mutex_lock(&pmutex);
         server_info.num_clients--;
         pthread_mutex_unlock(&pmutex);
-        /*Close and free resources before return. */
         close(cl_sock);
-        fclose(fp);
-        free(buff);
-      }
-      /*We write the data read to our file. */
-      fwrite(buff, 1, n, fp);
-      sz += n; /*Increment the size wrote so far... */
     }
 
-    /*Once thats done we close the file. */
-    fclose(fp);
+    /*Buffer to store a response strings... */
+    char response[64];
 
-    pthread_mutex_lock(&pmutex);
-    printf("\nI: Successfully received a '%s' video file from user client (IP = %s, port = %d) \n", video_file_ext, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-    pthread_mutex_unlock(&pmutex);
+    /*The server needs to store video uploaded by user in its local storage. */
+    char video_path[128];
 
-    /*The response buffer is reset. */
-    memset(response, 0x00, 64);
-    /*Now we read the response */
+    /*Path of the resulting video in the local storage of server*/
+    char output_video_path[128];
 
-    /*Now we can use the function that will spawn FFMPEG to do the video/audio transformation. */
-    /*We create a proper path to save the resulting video in the server's storage. */
-    sprintf(output_video_path, "./ServerOutput/%ld_video_.%s", random(), video_file_ext);
+    /*We need buffers to store video file extension from the user client. */
+    char video_file_ext[31];
 
-    if (censor_video(video_path, output_video_path) == 0)
+    /*Required video file extension. */
+    char file_ext[8];
+
+    /*We allocate a buffer to make the task of reading and writing files more manageable. */
+    unsigned char *buff = (unsigned char *)malloc(4096);
+
+    intmax_t fSize = 0;
+
+    uint32_t sec = 0;    // Duration of video
+    uint32_t width = 0;  // Width of video frame.
+    uint32_t height = 0; // Height of video frame.
+
+    /*We seed the random number generator. */
+    srandom(time(NULL));
+
+    /*We enter into a while loop of service in which we accept video files from the user client with aporopriate parameters and does the expected job for them. */
+    while (1)
     {
-      pthread_mutex_lock(&pmutex);
-      printf("\nI: Successfully created video using FFMPEG, for user client (IP = %s, port = %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-      pthread_mutex_unlock(&pmutex);
+        /*Reset the all the buffers as well as other variables. */
+        memset(response, 0x00, 64);
 
-      /*We need to obtain the file size of resulting video file*/
-      struct stat file_stat;
-      stat(output_video_path, &file_stat);
+        memset(video_path, 0x00, 128);
+        memset(video_file_ext, 0x00, 31);
 
-      /*We send a SUCCESS response, indicating the video conversion got successfully done! We also send the video file size along with it in "SUCCESS SIZE" format */
-      memset(response, 0x00, 64);
-      sprintf(response, "SUCCESS %jd", (intmax_t)file_stat.st_size);
-      if (write(cl_sock, response, strlen(response) + 1) < 0)
-      {
-        break;
-      }
+        memset(output_video_path, 0x00, 128);
+        memset(file_ext, 0x00, 8);
 
-      /*Now we read the response from client. */
-      memset(response, 0x00, 64);
-      if (read(cl_sock, response, 64) < 0)
-      {
-        break;
-      }
+        fSize = 0;
+        sec = 0;
+        width = height = 0;
 
-      /*If their response is SEND_VIDEO we start sending the video file to the client. */
-      if (strcmp(response, "SEND_VIDEO") == 0)
-      {
-        /*We send the video file to the user client*/
-
-        fp = fopen(output_video_path, "rb");
-
-        while ((n = fread(buff, 1, 4096, fp)) > 0)
+        /*Read the response from user client */
+        if (read(cl_sock, response, 64) < 0)
         {
-          if (write(cl_sock, buff, n) < 0)
-          {
-            pthread_mutex_lock(&pmutex);
-            server_info.num_clients--;
-            pthread_mutex_unlock(&pmutex);
-            close(cl_sock);
-            fclose(fp);
-            free(buff);
-            close(cl_sock);
-          }
+            break;
         }
 
-        fclose(fp); // We close the file after reading..
+        /*If the response is the string "EXIT" we quit serving the client immediately. */
+        if (strcmp(response, "EXIT") == 0)
+        {
+            pthread_mutex_lock(&pmutex);
+            /*We print on the terminal that the session for this user client is over. */
+            printf("\n---> USER CLIENT left!  (IP: %s on port: %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+            pthread_mutex_unlock(&pmutex);
+            break;
+        }
+
+        /****OTHERWISE****/
+        /*The server now expects the video file extension from the user client; along with its size in bytes in ".extension SIZE" format. */
+
+        /*We extract the video file extension and size from the response string. */
+        sscanf(response, "%s %jd", video_file_ext, (intmax_t *)&fSize);
+
+        /*If the file size is zero or video file extension is empty. We close this connection */
+
+        if ((fSize == 0) || strlen(video_file_ext) == 0)
+        {
+            pthread_mutex_lock(&pmutex);
+            printf("I: User client (IP = %s, port = %d), \n   sent invalid data; Closing connection!\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+            pthread_mutex_unlock(&pmutex);
+
+            break;
+        }
+
+        /*We print necessary information on the server's terminal */
 
         pthread_mutex_lock(&pmutex);
-        printf("\nI: Successfully sent video of size: %jd bytes, to user client (IP = %s, port = %d)\n", (intmax_t)file_stat.st_size, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+        printf("I: User client (IP = %s, port = %d), \n   wants to upload a '%s' video file, having size %jd bytes. \n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port), video_file_ext, fSize);
+
         pthread_mutex_unlock(&pmutex);
-      }
+
+        /*The server then sends a "SEND_FILE" response to indicate that the client should begin the upload of the file to the server. */
+
+        if (write(cl_sock, "SEND_FILE", strlen("SEND_FILE") + 1) < 0)
+        {
+            break;
+        }
+
+        /*We use random numbers to create a unique file name for the uploaded video, so that it won't create a problem if a different thread gets same file name from user */
+        sprintf(video_path, "./ServerInput/%ld_video_%s", random(), video_file_ext);
+
+        /*Now we read the file contents from the client and save it in our server's local storage. */
+
+        intmax_t sz = 0; // Size counter.
+        /*We prepare to save the data read from the client ... */
+        FILE *fp = fopen(video_path, "wb");
+        int n = 0; // Number of bytes instantaneously read.
+
+        while (sz < fSize)
+        {
+            n = read(cl_sock, buff, 4096);
+            if (n == -1)
+            {
+                /*Error occurred! */
+                pthread_mutex_lock(&pmutex);
+                server_info.num_clients--;
+                pthread_mutex_unlock(&pmutex);
+                /*Close and free resources before return. */
+                close(cl_sock);
+                fclose(fp);
+                free(buff);
+            }
+            /*We write the data read to our file. */
+            fwrite(buff, 1, n, fp);
+            sz += n; /*Increment the size wrote so far... */
+        }
+
+        /*Once that's done we close the file. */
+        fclose(fp);
+
+        pthread_mutex_lock(&pmutex);
+        printf("\nI: Successfully received a '%s' video file from user client (IP = %s, port = %d) \n", video_file_ext, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+        pthread_mutex_unlock(&pmutex);
+
+        /*The response buffer is reset. */
+        memset(response, 0x00, 64);
+        /*Now we read the response */
+
+        /*Now we can use the function that will spawn FFMPEG to do the video/audio transformation. */
+        /*We create a proper path to save the resulting video in the server's storage. */
+        sprintf(output_video_path, "./ServerOutput/%ld_video.%s", random(), video_file_ext);
+
+        /* Create a separate thread to call the censor_video function */
+        pthread_t censor_thread;
+        CENSOR_ARGS *censor_args = (CENSOR_ARGS *)malloc(sizeof(CENSOR_ARGS));
+        censor_args->video_path = strdup(video_path);
+        censor_args->output_path = strdup(output_video_path);
+
+        if (pthread_create(&censor_thread, NULL, censor_video_thread, (void *)censor_args) != 0)
+        {
+            /* If there is an error creating the thread, report it to the user and skip handling this connection */
+            pthread_mutex_lock(&pmutex);
+            printf("\nERROR! ---> Thread not created.\n");
+            pthread_mutex_unlock(&pmutex);
+
+            continue;
+        }
+
+        /* We join the censor thread to wait for it to finish */
+        pthread_join(censor_thread, NULL);
+
+        /* Check if the censoring was successful */
+        if (censor_args->censor_status == 0)
+        {
+            pthread_mutex_lock(&pmutex);
+            printf("\nI: Successfully created video using FFMPEG, for user client (IP = %s, port = %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+            pthread_mutex_unlock(&pmutex);
+
+            /* We need to obtain the file size of resulting video file */
+            struct stat file_stat;
+            stat(output_video_path, &file_stat);
+
+            /* We send a SUCCESS response, indicating the video conversion got successfully done! We also send the video file size along with it in "SUCCESS SIZE" format */
+            memset(response, 0x00, 64);
+            sprintf(response, "SUCCESS %jd", (intmax_t)file_stat.st_size);
+            if (write(cl_sock, response, strlen(response) + 1) < 0)
+            {
+                break;
+            }
+
+            /* Now we read the response from the client. */
+            memset(response, 0x00, 64);
+            if (read(cl_sock, response, 64) < 0)
+            {
+                break;
+            }
+
+            /* If their response is SEND_VIDEO we start sending the video file to the client. */
+            if (strcmp(response, "SEND_VIDEO") == 0)
+            {
+                /* We send the video file to the user client */
+
+                fp = fopen(output_video_path, "rb");
+
+                while ((n = fread(buff, 1, 4096, fp)) > 0)
+                {
+                    if (write(cl_sock, buff, n) < 0)
+                    {
+                        break;
+                    }
+                }
+
+                fclose(fp);
+            }
+        }
+        else
+        {
+            pthread_mutex_lock(&pmutex);
+            printf("\nERROR! ---> Could not create video using FFMPEG, for user client (IP = %s, port = %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+            pthread_mutex_unlock(&pmutex);
+
+            /* We send a FAIL response to the client to indicate that the video conversion failed */
+            if (write(cl_sock, "FAIL", strlen("FAIL") + 1) < 0)
+            {
+                break;
+            }
+        }
+
+        /* Remove the input and output files from the server's storage */
+        remove(video_path);
+        remove(output_video_path);
+
+        /*Free resources before continuing. */
+        free(censor_args->video_path);
+        free(censor_args->output_path);
+        free(censor_args);
     }
-    else
-    {
-      /*Some error occured :( */ /*We send an ERROR response to the client. They should try again. */
 
-      pthread_mutex_lock(&pmutex);
+    /*We close the client's connection */
+    close(cl_sock);
 
-      printf("\nE: A fatal ERROR occured in creating the video with FFMPEG for user client (IP = %s, port = %d). \n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
-      pthread_mutex_unlock(&pmutex);
+    /*We also decrement the appropriate counts from the statistics*/
+    pthread_mutex_lock(&pmutex);
+    server_info.num_clients--;
+    pthread_mutex_unlock(&pmutex);
 
-      if (write(cl_sock, "ERROR", strlen("ERROR") + 1) < 0)
-      {
-        break;
-      }
-    }
-  }
+    /*We terminate this thread. */
+    pthread_exit(NULL);
+}
 
-  /*We decrement the appropriate counts as well as increment the successful connections counter. */
-  pthread_mutex_lock(&pmutex);
-  server_info.num_clients--;
-  pthread_mutex_unlock(&pmutex);
+void *censor_video_thread(void *args)
+{
+    CENSOR_ARGS *censor_args = (CENSOR_ARGS *)args;
 
-  /*We close the connection after service. */
-  close(cl_sock);
+    /* Call the censor_video function */
+    censor_args->censor_status = censor_video(censor_args->video_path, censor_args->output_path);
 
-  /*Free the buffer.*/
-  free(buff);
+    pthread_exit(NULL);
 }
 
 int censor_video(char *videoPath, char *output_path)
