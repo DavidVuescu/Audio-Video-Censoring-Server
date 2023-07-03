@@ -214,11 +214,9 @@ int main(int argc, char *argv[])
 
         do
         {
-          printf("\nPlease provide path to download video (Please use same extension provided earlier...): ");
+          printf("\nPlease provide path to download video: ");
 
           /*We read the new path from the user. */
-          ch = fgetc(stdin);
-          ch = 0;
           idx = 0;
           while ((ch = fgetc(stdin)) != '\n')
           {
