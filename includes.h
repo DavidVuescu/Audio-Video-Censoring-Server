@@ -47,6 +47,8 @@ pthread_mutex_t pmutex;
 SERVER_INFO server_info;
 /*Global flag that controls the service loop of the server. */
 int run = 1;
+/*Global flag for checking if an admin is connected at any given moment */
+int admin_connected = 0;
 
 void *unix_main(void *args);
 void *inet_main(void *args);

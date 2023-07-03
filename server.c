@@ -25,6 +25,7 @@ int main()
 
 void *unix_main(void *args)
 {
+  memset(&server_info, 0x00, sizeof(SERVER_INFO));
   /* sockaddr_in struct to store,
      the server network info like IP, port.
   */
@@ -105,6 +106,18 @@ void *unix_main(void *args)
     socklen_t cli_addr_size = sizeof(struct sockaddr_un);
     cl_sock = accept(sock_fd, (struct sockaddr *)&cli_addr, &cli_addr_size);
 
+    // Verificam daca avem un admin conectat
+    pthread_mutex_lock(&pmutex);
+    if (admin_connected)
+    {
+      pthread_mutex_unlock(&pmutex);
+
+      // Refuzam conexiunea
+      close(cl_sock);
+      continue;
+    }
+    pthread_mutex_unlock(&pmutex);
+
     if (cl_sock == -1)
     {
       /*An error occured in accepting this connection... We skip it! */
@@ -112,6 +125,12 @@ void *unix_main(void *args)
       printf("\nERROR! ---> Failed to accept connection.\n");
       pthread_mutex_unlock(&pmutex);
       continue;
+    }
+    else{
+      // Setam flag-ul de admin_connected 
+      pthread_mutex_lock(&pmutex);
+      admin_connected = 1;
+      pthread_mutex_unlock(&pmutex);
     }
 
     /*We store the information about our new connection in a CLIENT_DATA struct that is heap allocated and passed on as argument to the thread function. */
@@ -394,7 +413,7 @@ void *admin_handler(void *data)
       pthread_mutex_unlock(&pmutex);
       break;
     }
-    else if (strcmp(response, "STATS") == 0)
+    else if (strcmp(response, "CLIENTS") == 0)
     {
       /*The administrator client wants the servers statistics. */
       /*We prepare the response buffer and send it to the admin client that contain the servers present statistics. */
@@ -403,6 +422,28 @@ void *admin_handler(void *data)
       pthread_mutex_lock(&pmutex);
 
       sprintf(response, "Number of clients connected: %d\n", server_info.num_clients);
+      pthread_mutex_unlock(&pmutex);
+
+      /*We send the response to the admin client. */
+      if (write(cl_sock, response, strlen(response) + 1) < 0)
+      {
+        break;
+      }
+
+      pthread_mutex_lock(&pmutex);
+
+      printf("\n---> Number of clients connected infomation sent to admin \n");
+      pthread_mutex_unlock(&pmutex);
+    }
+    else if (strcmp(response, "STATS") == 0)
+    {
+      /*The administrator client wants the servers statistics. */
+      /*We prepare the response buffer and send it to the admin client that contain the servers present statistics. */
+      memset(response, 0x00, 1024);
+
+      pthread_mutex_lock(&pmutex);
+
+      sprintf(response, "Number of videos processed: %d\n", server_info.successful_services);
       pthread_mutex_unlock(&pmutex);
 
       /*We send the response to the admin client. */
@@ -436,11 +477,15 @@ void *admin_handler(void *data)
       break;
     }
   }
-
-  /*Since we are closing the connection we decrement the counts*/
+  //Change the admin_connection flag
   pthread_mutex_lock(&pmutex);
-  server_info.num_clients--;
+  admin_connected = 0;
   pthread_mutex_unlock(&pmutex);
+
+  // /*Since we are closing the connection we decrement the counts*/
+  // pthread_mutex_lock(&pmutex);
+  // server_info.num_clients--;
+  // pthread_mutex_unlock(&pmutex);
 
   /*We close the connection after service. */
   close(cl_sock);
@@ -657,6 +702,12 @@ void *client_handler(void *data)
 
         pthread_mutex_lock(&pmutex);
         printf("\nI: Successfully sent video of size: %jd bytes, to user client (IP = %s, port = %d)\n", (intmax_t)file_stat.st_size, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
+        pthread_mutex_unlock(&pmutex);
+
+        /*With that we have successfully converted an image to a video with transition desired by user.
+         * Therefore we increment the success counter */
+        pthread_mutex_lock(&pmutex);
+        server_info.successful_services++;
         pthread_mutex_unlock(&pmutex);
       }
     }

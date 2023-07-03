@@ -40,7 +40,10 @@ int main(int argc, char *argv[])
   char response[1024];
   memset(response, 0x00, 1024);
 
-    /*We read the response from the server. If response is "WELCOME", then we are good to go. */
+  
+
+
+  /*We read the response from the server. If response is "WELCOME", then we are good to go. */
 
   if (read(sock, response, 1024) < 0)
   {
@@ -78,7 +81,7 @@ int main(int argc, char *argv[])
     /*Read the user supplied option */
     scanf("%d", &op);
 
-    if ((op < 1) || (op > 3))
+    if ((op < 1) || (op > 4))
     {
       printf("\nERROR! Invalid option!\n");
       continue;
@@ -86,9 +89,9 @@ int main(int argc, char *argv[])
 
     if (op == 1)
     {
-      /*We inform the server that we need the servers statistical information */
+      /*We inform the server that we need the number of clinets connected */
 
-      if (write(sock, "STATS", strlen("STATS") + 1) < 0)
+      if (write(sock, "CLIENTS", strlen("CLIENTS") + 1) < 0)
       {
         perror("ERROR! ---> write() ");
         continue;
@@ -106,6 +109,27 @@ int main(int argc, char *argv[])
       printf("\n----- CONNECTED CLIENTS -----\n%s\n", response);
     }
     else if (op == 2)
+    {
+      /*We inform the server that we need the number of succesful videos processed */
+
+      if (write(sock, "STATS", strlen("STATS") + 1) < 0)
+      {
+        perror("ERROR! ---> write() ");
+        continue;
+      }
+
+      /*We reset the response buffer so that we can store the report send by the server */
+      if (read(sock, response, 1024) < 0)
+      {
+        perror("ERROR! ---> read() ");
+        continue;
+      }
+
+      /*Finally we display the statistical information captured to the terminal screen of administrator client. */
+
+      printf("\n----- VIDEOS PROCESSED -----\n%s\n", response);
+    }
+    else if (op == 3)
     {
       /*We send the server the message "SHUTDOWN" to initiate the server shutdown process. */
 
@@ -127,7 +151,7 @@ int main(int argc, char *argv[])
 
       break;
     }
-    else if (op == 3)
+    else if (op == 4)
     {
       /*We tell the server that we are ending our session and our connection should be closed. */
 
