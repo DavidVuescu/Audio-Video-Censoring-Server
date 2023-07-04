@@ -52,7 +52,7 @@ int admin_connected = 0;
 
 void *unix_main(void *args);
 void *inet_main(void *args);
-int censor_video(char *videoPath, char *output_path);
+int censor_video(char *option, char *videoPath, char *outputPath);
 void *admin_handler(void *data);
 void *client_handler(void *data);
 void *censor_video_thread(void *arg);
