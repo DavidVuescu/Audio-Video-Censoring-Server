@@ -6,11 +6,11 @@ int main()
 
   pthread_t unixthr, /* UNIX Thread: the UNIX server component */
       inetthr;       /* INET Thread: the INET server component */
-
+       
   unlink(UNIXSOCKET);
   printf("\n............ SERVER ............ \n");
 
-  pthread_create(&unixthr, NULL, unix_main, UNIXSOCKET); /* Transmite SOCKET-ul utilizat */
+  pthread_create(&unixthr, NULL, unix_main, UNIXSOCKET);
   iport = INETPORT;
   pthread_create(&inetthr, NULL, inet_main, &iport);
   /*
@@ -22,6 +22,7 @@ int main()
   unlink(UNIXSOCKET);
   return 0;
 }
+
 
 void *unix_main(void *args)
 {
@@ -187,14 +188,14 @@ void *inet_main(void *args)
      the server network info like IP, port.
   */
   struct sockaddr_in serv_addr;
-  /*Zero the memory out. */
+  /*Empty the memory out. */
   memset(&serv_addr, 0x00, sizeof(serv_addr));
 
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   /*Set the port. */
   serv_addr.sin_port = htons(INETPORT);
 
-  /*First we create a TCP Stream socket. */
+  /*Create a TCP Stream socket. */
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
   if (sock_fd == -1)
@@ -221,7 +222,7 @@ void *inet_main(void *args)
 
   We check whether "ServerInput" and "ServerOutput" directory is present in the current working directory.
 
-  If they are present we dont bother; else we create them because they are absolutely necessary for our server's proper functioning.
+  If they are present we dont bother; else we create them because they are necessary for our server's proper functioning.
   */
 
   struct stat check_dir;
@@ -273,10 +274,6 @@ void *inet_main(void *args)
   uint32_t n = 1; // Variable that keeps track of the number of thread ids allocated so far.
   /*Index into the thread ID array*/
   uint32_t idx = 0;
-
-  /*Now we start the infinite service loop of the server application.
-   * So long as the 'run' flag is set to one, the loop runs.
-   */
 
   printf("\n---> SERVER LISTENING FOR INET CONNECTIONS...\n");
 
@@ -483,9 +480,9 @@ void *admin_handler(void *data)
   pthread_mutex_unlock(&pmutex);
 
   // /*Since we are closing the connection we decrement the counts*/
-  // pthread_mutex_lock(&pmutex);
-  // server_info.num_clients--;
-  // pthread_mutex_unlock(&pmutex);
+  pthread_mutex_lock(&pmutex);
+  server_info.num_clients--;
+  pthread_mutex_unlock(&pmutex);
 
   /*We close the connection after service. */
   close(cl_sock);
@@ -520,6 +517,8 @@ void *client_handler(void *data)
 
   /*Buffer to store a response strings... */
   char response[64];
+  
+  char option[64];
 
   /*The server needs to store video uploaded by user in its local storage. */
   char video_path[128];
@@ -538,9 +537,6 @@ void *client_handler(void *data)
 
   intmax_t fSize = 0;
 
-  uint32_t sec = 0;    // Duration of video
-  uint32_t width = 0;  // Width of video frame.
-  uint32_t height = 0; // Height of video frame.
 
   /*We seed the random number generator. */
   srandom(time(NULL));
@@ -558,14 +554,14 @@ void *client_handler(void *data)
     memset(file_ext, 0x00, 8);
 
     fSize = 0;
-    sec = 0;
-    width = height = 0;
+
 
     /*Read the response from user client */
     if (read(cl_sock, response, 64) < 0)
     {
       break;
     }
+
 
     /*If the response is the string "EXIT" we quit serving the client immediately. */
     if (strcmp(response, "EXIT") == 0)
@@ -576,10 +572,20 @@ void *client_handler(void *data)
       pthread_mutex_unlock(&pmutex);
       break;
     }
-
-    /****OTHERWISE****/
-    /*The server now expects the video file extension from the user client; along with its size in bytes in ".extension SIZE" format. */
-
+	
+	
+	strcpy(option, response);
+    
+    //printf("%d----\n", *option);
+	
+	if (read(cl_sock, response, 64) < 0)
+    {
+      break;
+    }
+	
+	//printf("%s\n", response);
+	
+    
     /*We extract the video file extension and size from the response string. */
     sscanf(response, "%s %jd", video_file_ext, (intmax_t *)&fSize);
 
@@ -644,15 +650,18 @@ void *client_handler(void *data)
     printf("\nI: Successfully received a '%s' video file from user client (IP = %s, port = %d) \n", video_file_ext, inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
     pthread_mutex_unlock(&pmutex);
 
+   
+   
+
     /*The response buffer is reset. */
     memset(response, 0x00, 64);
     /*Now we read the response */
 
-    /*Now we can use the function that will spawn FFMPEG to do the video/audio transformation. */
-    /*We create a proper path to save the resulting video in the server's storage. */
+   
+
     sprintf(output_video_path, "./ServerOutput/%ld_video_.%s", random(), video_file_ext);
 
-    if (censor_video(video_path, output_video_path) == 0)
+    if (censor_video(option, video_path, output_video_path) == 0)
     {
       pthread_mutex_lock(&pmutex);
       printf("\nI: Successfully created video using FFMPEG, for user client (IP = %s, port = %d)\n", inet_ntoa(cdata->client_addr.sin_addr), ntohs(cdata->client_addr.sin_port));
@@ -739,58 +748,58 @@ void *client_handler(void *data)
   free(buff);
 }
 
-int censor_video(char *videoPath, char *output_path)
-{
-  pid_t pid;
 
-  pid = fork(); // Fork the process
+int censor_video(char *option, char *videoPath, char *outputPath) {
+    pid_t pid;
+    pid = fork();   // Fork the process
+    
+    
+	char option_char[32]; // Make sure the buffer is large enough to hold the string representation
+    sprintf( option_char, "%d", *option);
 
-  if (pid < 0)
-  {
-    printf("Failed to create child process.\n");
-    return 1;
-  }
-  else if (pid == 0)
-  {
-    /* Child process */
-    char *cppPath = "./BlurVideo"; // Path to your C++ executable
 
-    char *arguments[] = {
-        cppPath,
-        videoPath,
-        output_path,
-        NULL};
+    if (pid < 0) {
+        printf("Failed to create child process.\n");
+        return 1;
+    } else if (pid == 0) {
+        /* Child process */
+        char* cppPath = "./BlurVideo";  // Path to your C++ executable
 
-    /* Execute the C++ executable */
-    execvp(cppPath, arguments);
+        char* arguments[] = {
+            cppPath,
+             option_char,
+            videoPath,
+            outputPath,
+            NULL
+        };
+        
+        //printf("--%s-- --%s-- --%s-- --%s--     ------------ \n", cppPath, option, videoPath, outputPath);
 
-    /* If execvp returns, an error occurred */
-    printf("Failed to execute the C++ program.\n");
-    return 1;
-  }
-  else
-  {
-    /* Parent process: Continue execution */
-    printf("Parent process continues execution.\n");
+        /* Execute the C++ executable */
+        execvp(cppPath, arguments);
 
-    /* Wait for the child process to finish */
-    int status;
-    waitpid(pid, &status, 0);
+        /* If execvp returns, an error occurred */
+        printf("Failed to execute the C++ program.\n");
+        return 1;
+    } else {
+        /* Parent process: Continue execution */
+        printf("Parent process continues execution.\n");
 
-    if (WIFEXITED(status))
-    {
-      /* Child process exited normally */
-      int exitStatus = WEXITSTATUS(status);
-      printf("Child process exited with status: %d\n", exitStatus);
+        /* Wait for the child process to finish */
+        int status;
+        waitpid(pid, &status, 0);
+
+        if (WIFEXITED(status)) {
+            /* Child process exited normally */
+            int exitStatus = WEXITSTATUS(status);
+            printf("Child process exited with status: %d\n", exitStatus);
+        } else if (WIFSIGNALED(status)) {
+            /* Child process terminated by a signal*/
+            int signalNumber = WTERMSIG(status);
+            printf("Child process terminated by signal: %d\n", signalNumber);
+        }
     }
-    else if (WIFSIGNALED(status))
-    {
-      /* Child process terminated by a signal*/
-      int signalNumber = WTERMSIG(status);
-      printf("Child process terminated by signal: %d\n", signalNumber);
-    }
-  }
 
-  printf("Program execution completed.\n");
-  return 0;
+    printf("Program execution completed.\n");
+    return 0;
 }
