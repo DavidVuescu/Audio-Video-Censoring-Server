@@ -755,7 +755,7 @@ int censor_video(char *option, char *videoPath, char *outputPath) {
     
     
 	char option_char[32]; // Make sure the buffer is large enough to hold the string representation
-    sprintf( option_char, "%d", *option);
+    sprintf( option_char, "%s", option);
 
 
     if (pid < 0) {

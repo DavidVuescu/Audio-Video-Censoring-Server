@@ -1,136 +1,117 @@
 import socket
 import os
-import sys
+from pathlib import Path
 
-print("--> USER CLIENT <--")
+def main(server_ip, port):
+    print("--> USER CLIENT <--")
+    
+    server_addr = (server_ip, int(port))
 
-# If the user has not provided the right number of arguments, print usage instructions and return
-if len(sys.argv) != 3:
-    print("\nUsage:\npython client.py <Server IPv4 address> <port>\n")
-    sys.exit(1)
+    # Create a socket object 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 
-# Server IP address and port
-SERVER_IP = sys.argv[1]
-SERVER_PORT = int(sys.argv[2])
+    # Connection to server
+    try:
+        sock.connect(server_addr)
+    except Exception as e:
+        print("\nERROR! Cannot connect to server!\nPlease try again later!\n")
+        return 3
 
-# Create a TCP socket for communicating with the server
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-try:
-    # Connect to the server
-    client_socket.connect((SERVER_IP, SERVER_PORT))
-
-    # Receive the welcome message from the server
-    response = client_socket.recv(1024).decode()
-    print(response)
-
+    response = sock.recv(1024).decode()
     #if response != "WELCOME":
-        # Server rejected the connection
      #   print("\nERROR! ---> CONNECTION REJECTED!\n")
-      #  client_socket.close()
-       # sys.exit(1)
+      #  sock.close()
+       # return 6
 
-    print("\n!!! CONNECTION ACCEPTED !!!\n")
+    print("\n!!! CONNECTION ACCEPTED !!! \n\n")
 
     while True:
         print("\n---- MENU ----")
-        print("  1. Upload video to server for censoring")
-        print("  2. Exit session.")
-        print("> ")
-
-        # Read the user's option
-        try:
-            op = int(input())
-        except ValueError:
-            print("\nE: Please provide a valid option from the list and try again!")
+        print("  1. Upload video to server for video censoring")
+        print("  2. Upload video to server for audio censoring")
+        print("  3. Upload video to server for full censoring")
+        print("  4. Exit session. ")
+        op = int(input("> "))
+        
+        if op not in [1, 2, 3, 4]:
+            print("\nE: Please provide correct option from the list and try again!\n")
             continue
+        
+        if op in [1, 2, 3]:
+            sock.send(str(op).encode())
 
-        if op == 1:
-            # Prompt the user for the video file path
-            path = input("\nPlease type the path to the video file: ")
+            path = input("\nPlease type path to video file: ")
 
-            if not os.path.isfile(path):
-                print("\nE: File not found.")
+            if not os.path.exists(path):
+                print("\nERROR! File not found.")
                 continue
 
-            # Get the video file size
-            file_size = os.path.getsize(path)
-
-            # Send the response to the server in the format "EXTENSION SIZE"
-            response = f"{os.path.splitext(path)[1]} {file_size}"
-            client_socket.send(response.encode())
-
-            # Receive the response from the server
-            response = client_socket.recv(1024).decode()
+            print(f"\nI: Preparing to upload file: '{path}' of size: {os.path.getsize(path)} bytes.")
+            response = f"{Path(path).suffix} {os.path.getsize(path)}"
             
+            # Send file information
+            sock.sendall(response.encode())
+
+            response = sock.recv(1024).decode()
+            #if response != "SEND_FILE":
+             #   print("\nE: Unexpected change in communication protocols.\nTerminating...")
+              #  break
+
+            with open(path, 'rb') as file:
+                while (data := file.read(4096)):
+                    sock.sendall(data)
+            print("\nI: Processing...\nWaiting for response from the server...")
+
+            response = sock.recv(1024).decode()
             
-           #f response is "SEND_FILE":
-            	
-            	#print("\nE: Unexpected change in communication protocols.")
-                #break
-
-            # Upload the video file to the server
-            with open(path, "rb") as file:
-                while True:
-                    data = file.read(4096)
-                    if not data:
-                        break
-                    client_socket.sendall(data)
-
-            print("\nI: Processing...")
-            print("   Waiting for response from the server...")
-
-            # Receive the response from the server
-            response = client_socket.recv(1024).decode()
-            
-            
-	    
-
-            if response.startswith("SUCCESS"):
-                #video_size = int(response.split()[1])
-                video_size_str = response.split()[1].rstrip('\x00')
-                try:
-                	video_size = int(video_size_str)
-                except ValueError:
-                    print("Invalid video size:", video_size_str)
-                    video_size = 0
+            video_size_str = response.split()[1].rstrip('\x00')
+            try:
+            	video_size = int(video_size_str)
+            except ValueError:
+            	print("Invalid video size:", video_size_str)
+            	video_size = 0
 		
-                # Tell the server to start sending the video file
-                client_socket.send("SEND_VIDEO".encode())			
+            
+            if "SUCCESS" in response:
+                print("\nI: The server successfully created the video file!")
 
-                # Prompt the user for the path to save the downloaded video
+                # Notify the server that the client is ready to receive the file
+                sock.send("SEND_VIDEO".encode())
+                
                 while True:
-                    download_path = input("\nPlease provide the path to download the video: ")
-                    if os.path.isfile(download_path):
+                    path = input("\nPlease provide the path to download the video: ")
+                    if os.path.isfile(path):
                         print("\nE: File already exists. Please provide a different path.")
                         continue
                     break
 
-                # Download the video file from the server
-                with open(download_path, "wb") as file:
+                with open(path, "wb") as file:
                     received_bytes = 0
                     while received_bytes < video_size:
-                        data = client_socket.recv(4096)
+                        data = sock.recv(4096)
                         file.write(data)
                         received_bytes += len(data)
+                        
+                        
+                        
 
-                print(f"\nI: Success! The video file has been downloaded to: '{download_path}'")
+                print(f"\nI: Success! The video file has been downloaded to: '{path}'")
             else:
-                print("\nE: A server internal error occurred while processing the video :(")
-                print("   Please try again later with different parameters...")
+                print("\nE: A server internal error occurred while processing the video :(\nPlease try again later, with different parameters...")
+                continue
 
-        elif op == 2:
+        elif op == 4:
             print("\nI: Ending session...")
-            client_socket.send("EXIT".encode())
+            sock.sendall("EXIT".encode())
             break
+    sock.close()
 
-        else:
-            print("\nE: Please provide a valid option from the list and try again!")
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 3:
+        print(f"\nUsage:\n{sys.argv[0]} <Server IPv4 address> <port>")
+        sys.exit(1)
 
-except ConnectionRefusedError:
-    print("\nERROR! Cannot connect to server!")
-except KeyboardInterrupt:
-    print("\nClient terminated by user.")
-finally:
-    # Close the socket
-    client_socket.close()
+    main(sys.argv[1], sys.argv[2])
+
+
